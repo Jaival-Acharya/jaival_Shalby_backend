@@ -1,0 +1,3 @@
+.env
+seed.sql
+scripts/seed_database.go
