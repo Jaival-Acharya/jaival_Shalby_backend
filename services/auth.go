@@ -2,6 +2,7 @@ package services
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"log"
 	"time"
@@ -30,8 +31,15 @@ func Login(db *sql.DB, cfg *config.Config, req models.LoginRequest) (*models.Log
 		return nil, errors.New("Invalid email or password")
 	}
 
-	// Step 2-4: Compare passwords using bcrypt
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
+	// Step 2: Decode base64-encoded password
+	decodedPassword, err := base64.StdEncoding.DecodeString(req.Password)
+	if err != nil {
+		log.Println("Error decoding password:", err)
+		return nil, errors.New("Invalid request format")
+	}
+
+	// Step 3-4: Compare passwords using bcrypt
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), decodedPassword)
 	if err != nil {
 		return nil, errors.New("Invalid email or password")
 	}
@@ -111,14 +119,21 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 		return nil, errors.New("Registration failed")
 	}
 
-	// Step 2: Hash password with bcrypt
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	// Step 2: Decode base64-encoded password
+	decodedPassword, err := base64.StdEncoding.DecodeString(req.Password)
+	if err != nil {
+		log.Println("Error decoding password:", err)
+		return nil, errors.New("Invalid request format")
+	}
+
+	// Step 3: Hash password with bcrypt
+	passwordHash, err := bcrypt.GenerateFromPassword(decodedPassword, bcrypt.DefaultCost)
 	if err != nil {
 		log.Println("Error hashing password:", err)
 		return nil, errors.New("Registration failed")
 	}
 
-	// Step 3: Start transaction
+	// Step 4: Start transaction
 	tx, err := db.Begin()
 	if err != nil {
 		log.Println("Error starting transaction:", err)
@@ -126,7 +141,7 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 	}
 	defer tx.Rollback()
 
-	// Step 4: Insert into users table
+	// Step 5: Insert into users table
 	var userID string
 	err = tx.QueryRow(
 		"INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id",
@@ -137,7 +152,7 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 		return nil, errors.New("Registration failed")
 	}
 
-	// Step 5: Get Patient role ID
+	// Step 6: Get Patient role ID
 	var roleID int
 	err = tx.QueryRow("SELECT id FROM roles WHERE name = 'Patient'").Scan(&roleID)
 	if err != nil {
@@ -145,14 +160,14 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 		return nil, errors.New("Registration failed")
 	}
 
-	// Step 6: Insert into user_roles
+	// Step 7: Insert into user_roles
 	_, err = tx.Exec("INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)", userID, roleID)
 	if err != nil {
 		log.Println("Error inserting user_role:", err)
 		return nil, errors.New("Registration failed")
 	}
 
-	// Step 7: Insert into patients table
+	// Step 8: Insert into patients table
 	var patientID string
 	err = tx.QueryRow(
 		"INSERT INTO patients (user_id, date_of_birth, gender, blood_group, phone) VALUES ($1, $2, $3, $4, $5) RETURNING id",
@@ -163,7 +178,7 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 		return nil, errors.New("Registration failed")
 	}
 
-	// Step 8: Insert allergies
+	// Step 9: Insert allergies
 	if len(req.Allergies) > 0 {
 		for _, allergy := range req.Allergies {
 			_, err := tx.Exec(
@@ -177,7 +192,7 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 		}
 	}
 
-	// Step 9: Insert chronic conditions
+	// Step 10: Insert chronic conditions
 	if len(req.Conditions) > 0 {
 		for _, condition := range req.Conditions {
 			_, err := tx.Exec(
@@ -191,7 +206,7 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 		}
 	}
 
-	// Step 10: Insert emergency contact if provided
+	// Step 11: Insert emergency contact if provided
 	if req.EmergencyContactName != "" {
 		_, err := tx.Exec(
 			"INSERT INTO patient_emergency_contacts (patient_id, name, phone, relation) VALUES ($1, $2, $3, $4)",
@@ -203,16 +218,16 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 		}
 	}
 
-	// Step 11: Commit transaction
+	// Step 12: Commit transaction
 	err = tx.Commit()
 	if err != nil {
 		log.Println("Error committing transaction:", err)
 		return nil, errors.New("Registration failed")
 	}
 
-	// Step 12: Return success response
+	// Step 13: Return success response
 	return &models.SignupResponse{
 		Message: "Registration successful",
-		UserId:  userID,
+		UserID:  userID,
 	}, nil
 }

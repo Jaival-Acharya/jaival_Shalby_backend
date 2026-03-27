@@ -27,10 +27,40 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cfg *config.Config) {
 		authRoutes.POST("/signup", handlers.SignupHandler(db))
 	}
 
-	// Protected routes (require authentication - add middleware here when needed)
-	// protectedRoutes := r.Group("/api")
-	// protectedRoutes.Use(middleware.AuthMiddleware(cfg))
-	// {
-	//     // Add protected routes here
-	// }
+	// Admin routes
+	adminRoutes := r.Group("/api/admin")
+	// adminRoutes.Use(middleware.AuthMiddleware(cfg))
+	// adminRoutes.Use(middleware.RoleMiddleware("Admin"))
+	{
+		// Dashboard
+		adminRoutes.GET("/dashboard", handlers.GetAdminDashboard(db))
+
+		// Doctor Management
+		adminRoutes.GET("/doctors", handlers.GetAllDoctors(db))
+		adminRoutes.GET("/doctors/:id", handlers.GetDoctorByID(db))
+		adminRoutes.POST("/doctors", handlers.CreateDoctor(db))
+		adminRoutes.PUT("/doctors/:id", handlers.UpdateDoctor(db))
+		adminRoutes.DELETE("/doctors/:id", handlers.DeleteDoctor(db))
+
+		// Patient Management
+		adminRoutes.GET("/patients", handlers.GetAllPatients(db))
+		adminRoutes.POST("/patients", handlers.CreatePatient(db))
+		adminRoutes.GET("/patients/:id", handlers.GetPatientDetails(db))
+		adminRoutes.PUT("/patients/:id", handlers.UpdatePatient(db))
+		adminRoutes.DELETE("/patients/:id", handlers.DeletePatient(db))
+
+		// Medicine Management
+		adminRoutes.GET("/medicines", handlers.GetAllMedicines(db))
+		adminRoutes.GET("/medicines/stats", handlers.GetMedicineStats(db))
+		adminRoutes.POST("/medicines", handlers.CreateMedicine(db))
+		adminRoutes.PUT("/medicines/:id", handlers.UpdateMedicine(db))
+		adminRoutes.DELETE("/medicines/:id", handlers.DeleteMedicine(db))
+
+		// Settings
+		adminRoutes.GET("/settings", handlers.GetSystemSettings(db))
+		adminRoutes.PUT("/settings", handlers.UpdateSystemSettings(db))
+
+		// Reports
+		adminRoutes.GET("/reports", handlers.GetReports(db))
+	}
 }

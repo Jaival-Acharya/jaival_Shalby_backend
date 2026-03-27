@@ -22,11 +22,24 @@ type LoginResponse struct {
 	User  User   `json:"user"`
 }
 
-type ErrorResponse struct {
-	Error string `json:"error"`
+// SignupRequest for patient registration
+type SignupRequest struct {
+	FullName                 string   `json:"fullName" binding:"required"`
+	DateOfBirth              string   `json:"dateOfBirth" binding:"required"`
+	Gender                   string   `json:"gender" binding:"required"`
+	BloodGroup               string   `json:"bloodGroup"`
+	Phone                    string   `json:"phone"`
+	Email                    string   `json:"email" binding:"required,email"`
+	Password                 string   `json:"password" binding:"required,min=6"`
+	Allergies                []string `json:"allergies"`
+	Conditions               []string `json:"conditions"`
+	EmergencyContactName     string   `json:"emergencyContactName"`
+	EmergencyContactPhone    string   `json:"emergencyContactPhone"`
+	EmergencyContactRelation string   `json:"emergencyContactRelation"`
 }
 
-type SuccessResponse struct {
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
+// SignupResponse for successful registration
+type SignupResponse struct {
+	Message string `json:"message"`
+	UserID  string `json:"userId"`
 }

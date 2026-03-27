@@ -6,8 +6,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// GenerateBcryptHash - Helper to generate bcrypt password hashes for seed data
-func main() {
+// GenerateBcryptHashesForSeed - Helper to generate bcrypt password hashes for seed data
+// To use: Comment out the main function above and uncomment this to generate hashes
+func GenerateBcryptHashesForSeed() {
 	// List of test passwords for different user types
 	passwords := map[string]string{
 		"Admin@123":      "admin@shalby.com",
