@@ -75,3 +75,20 @@ func SignupHandler(db *sql.DB) gin.HandlerFunc {
 		c.JSON(http.StatusCreated, response)
 	}
 }
+
+// LogoutHandler handles user logout requests
+func LogoutHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if err := services.Logout(); err != nil {
+			log.Println("Logout error:", err.Error())
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				Error: "Logout failed",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, models.SuccessResponse{
+			Message: "Logout successful",
+		})
+	}
+}

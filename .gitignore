@@ -2,12 +2,5 @@
 seed.sql
 scripts/seed_database.go
 alldatabasequeries.sql
-MASTER_PROJECT_DEEP_DIVE.md
-IMPLEMENTATION_SUMMARY.md
-CURRENT_IMPLEMENTATION_MAP.md
-API_IMPLEMENTATION_GUIDE.md
-ADMIN_API_DOCS.md
-IMPLEMENTATION_SUMMARY.md
-migrations/002_admin_features.sql
-migrations/003_doctor_education.sql
-migrations/004_add_phone_address_to_users.sql
+docs/
+migrations/

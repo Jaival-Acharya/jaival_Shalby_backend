@@ -1,4 +1,4 @@
-package main
+package scripts
 
 import (
 	"fmt"
@@ -19,8 +19,9 @@ func GenerateBcryptHashesForSeed() {
 
 	fmt.Println("========================================")
 	fmt.Println("Shalby HMS - Bcrypt Hash Generator")
-	fmt.Println("========================================\n")
-	fmt.Println("Use these hashes in seed.sql for test user passwords\n")
+	fmt.Println("=========================================")
+	fmt.Println()
+	fmt.Println("Use these hashes in seed.sql for test user passwords")
 
 	for password, email := range passwords {
 		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -32,7 +33,7 @@ func GenerateBcryptHashesForSeed() {
 		fmt.Printf("Email(s): %s\n", email)
 		fmt.Printf("Password: %s\n", password)
 		fmt.Printf("Bcrypt Hash:\n%s\n", string(hash))
-		fmt.Println("----------------------------------------\n")
+		fmt.Println("----------------------------------------")
 	}
 
 	fmt.Println("✓ Copy the above hashes into seed.sql")

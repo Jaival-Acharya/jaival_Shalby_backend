@@ -114,7 +114,7 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 	if err == nil {
 		return nil, errors.New("An account with this email already exists")
 	}
-	if err != nil && err != sql.ErrNoRows {
+	if err != sql.ErrNoRows {
 		log.Println("Error checking email existence:", err)
 		return nil, errors.New("Registration failed")
 	}
@@ -230,4 +230,9 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 		Message: "Registration successful",
 		UserID:  userID,
 	}, nil
+}
+
+// Logout handles logout requests. For JWT stateless auth this confirms client-side token invalidation.
+func Logout() error {
+	return nil
 }

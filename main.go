@@ -6,6 +6,7 @@ import (
 	"shalby_backend/config"
 	"shalby_backend/database"
 	"shalby_backend/routes"
+	"shalby_backend/scripts"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -27,6 +28,9 @@ func main() {
 	// Connect to database
 	db := database.Connect(cfg)
 	defer db.Close()
+
+	// Run migrations
+	scripts.RunMigrations()
 
 	// Create Gin router
 	r := gin.Default()

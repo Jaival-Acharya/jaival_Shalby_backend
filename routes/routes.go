@@ -25,6 +25,7 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cfg *config.Config) {
 	{
 		authRoutes.POST("/login", handlers.LoginHandler(db, cfg))
 		authRoutes.POST("/signup", handlers.SignupHandler(db))
+		authRoutes.POST("/logout", middleware.AuthMiddleware(cfg), handlers.LogoutHandler())
 	}
 
 	// Admin routes
@@ -32,8 +33,10 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cfg *config.Config) {
 	// adminRoutes.Use(middleware.AuthMiddleware(cfg))
 	// adminRoutes.Use(middleware.RoleMiddleware("Admin"))
 	{
-		// Dashboard
+		// Dashboard & Profile
 		adminRoutes.GET("/dashboard", handlers.GetAdminDashboard(db))
+		adminRoutes.GET("/profile", handlers.GetAdminProfile(db))
+		adminRoutes.PATCH("/profile", handlers.UpdateAdminProfile(db))
 
 		// Doctor Management
 		adminRoutes.GET("/doctors", handlers.GetAllDoctors(db))
@@ -62,5 +65,53 @@ func SetupRoutes(r *gin.Engine, db *sql.DB, cfg *config.Config) {
 
 		// Reports
 		adminRoutes.GET("/reports", handlers.GetReports(db))
+
+		// Staff Management
+		adminRoutes.POST("/staff", handlers.CreateStaff(db))
+		adminRoutes.GET("/staff", handlers.GetAllStaff(db))
+		adminRoutes.GET("/staff/role/:role", handlers.GetStaffByRole(db))
+		adminRoutes.PUT("/staff/:id", handlers.UpdateStaff(db))
+		adminRoutes.PUT("/staff/:id/deactivate", handlers.DeactivateStaff(db))
+		adminRoutes.PUT("/staff/:id/activate", handlers.ActivateStaff(db))
+		adminRoutes.GET("/doctors/department/:department", handlers.GetDoctorsInDepartment(db))
+	}
+
+	// Nurse routes
+	nurseRoutes := r.Group("/api/nurse")
+	// nurseRoutes.Use(middleware.AuthMiddleware(cfg))
+	// nurseRoutes.Use(middleware.RoleMiddleware("Nurse"))
+	{
+		nurseRoutes.POST("/vitals", handlers.RecordVitals(db))
+		nurseRoutes.GET("/patients/checkedin", handlers.GetCheckedInPatients(db))
+		nurseRoutes.GET("/patients/:id/vitals", handlers.GetPatientVitals(db))
+	}
+
+	// Receptionist routes
+	receptionistRoutes := r.Group("/api/receptionist")
+	// receptionistRoutes.Use(middleware.AuthMiddleware(cfg))
+	// receptionistRoutes.Use(middleware.RoleMiddleware("Receptionist"))
+	{
+		receptionistRoutes.POST("/patients/register", handlers.RegisterPatient(db))
+		receptionistRoutes.POST("/appointments/book", handlers.BookAppointment(db))
+		receptionistRoutes.POST("/patients/checkin", handlers.CheckInPatient(db))
+		receptionistRoutes.GET("/appointments/pending", handlers.GetPendingAppointments(db))
+	}
+
+	// Dropdown/Lookup routes
+	dropdownRoutes := r.Group("/api/dropdowns")
+	{
+		dropdownRoutes.GET("/departments", handlers.GetDepartments(db))
+		dropdownRoutes.POST("/departments", handlers.CreateDepartment(db))
+		dropdownRoutes.GET("/specializations", handlers.GetSpecializations(db))
+		dropdownRoutes.GET("/allergies", handlers.GetAllergies(db))
+		dropdownRoutes.GET("/conditions", handlers.GetConditions(db))
+		dropdownRoutes.GET("/medicine-categories", handlers.GetMedicineCategories(db))
+		dropdownRoutes.POST("/medicine-categories", handlers.CreateMedicineCategory(db))
+		dropdownRoutes.GET("/medicine-generic-names", handlers.GetMedicineGenericNames(db))
+		dropdownRoutes.GET("/cities", handlers.GetCities(db))
+		dropdownRoutes.GET("/roles", handlers.GetRoles(db))
+		dropdownRoutes.POST("/roles", handlers.CreateRole(db))
+		dropdownRoutes.GET("/beds", handlers.GetBeds(db))
+		dropdownRoutes.GET("/beds/occupancy-stats", handlers.GetBedsOccupancyStats(db))
 	}
 }
