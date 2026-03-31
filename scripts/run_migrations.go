@@ -87,6 +87,14 @@ func RunMigrations() {
 			continue
 		}
 
+		// Try to reset transaction state if previous migration failed
+		db.Close()
+		db, err = sql.Open("postgres", connStr)
+		if err != nil {
+			log.Printf("Failed to reconnect after migration: %v\n", err)
+			continue
+		}
+
 		// Execute migration
 		_, err = db.Exec(string(content))
 		if err != nil {

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"shalby_backend/config"
@@ -14,6 +15,30 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// In-memory OTP storage with expiration
+type OTPEntry struct {
+	OTP       string
+	ExpiresAt time.Time
+}
+
+var (
+	otpStore = make(map[string]OTPEntry)
+	otpMutex = &sync.Mutex{}
+)
+
+// CleanExpiredOTPs removes expired OTPs from memory
+func CleanExpiredOTPs() {
+	otpMutex.Lock()
+	defer otpMutex.Unlock()
+
+	now := time.Now()
+	for email, entry := range otpStore {
+		if now.After(entry.ExpiresAt) {
+			delete(otpStore, email)
+		}
+	}
+}
 
 func generateSixDigitOTP() string {
 	seed := time.Now().UnixNano() % 900000
@@ -126,27 +151,17 @@ func RequestPasswordResetHandler(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Generate OTP
 		otp := generateSixDigitOTP()
 		expiresAt := time.Now().Add(5 * time.Minute)
 
-		_, err = db.Exec("DELETE FROM password_reset_otps WHERE email = $1", req.Email)
-		if err != nil {
-			log.Println("Password reset OTP cleanup error:", err.Error())
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: "Failed to process request"})
-			return
+		// Store in memory
+		otpMutex.Lock()
+		otpStore[req.Email] = OTPEntry{
+			OTP:       otp,
+			ExpiresAt: expiresAt,
 		}
-
-		_, err = db.Exec(
-			"INSERT INTO password_reset_otps (email, otp, expires_at) VALUES ($1, $2, $3)",
-			req.Email,
-			otp,
-			expiresAt,
-		)
-		if err != nil {
-			log.Println("Password reset OTP insert error:", err.Error())
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: "Failed to process request"})
-			return
-		}
+		otpMutex.Unlock()
 
 		log.Printf("Password reset OTP for %s: %s", req.Email, otp)
 
@@ -168,26 +183,29 @@ func VerifyPasswordOTPHandler(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		var expiresAt time.Time
-		err := db.QueryRow(
-			"SELECT expires_at FROM password_reset_otps WHERE email = $1 AND otp = $2 ORDER BY created_at DESC LIMIT 1",
-			req.Email,
-			req.OTP,
-		).Scan(&expiresAt)
+		// Clean expired OTPs
+		CleanExpiredOTPs()
 
-		if err == sql.ErrNoRows {
+		// Retrieve from memory
+		otpMutex.Lock()
+		entry, exists := otpStore[req.Email]
+		otpMutex.Unlock()
+
+		if !exists {
 			c.JSON(http.StatusUnauthorized, models.ErrorResponse{Error: "Invalid OTP"})
 			return
 		}
 
-		if err != nil {
-			log.Println("Password reset OTP verify error:", err.Error())
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: "Failed to verify OTP"})
+		if time.Now().After(entry.ExpiresAt) {
+			otpMutex.Lock()
+			delete(otpStore, req.Email)
+			otpMutex.Unlock()
+			c.JSON(http.StatusUnauthorized, models.ErrorResponse{Error: "OTP has expired"})
 			return
 		}
 
-		if time.Now().After(expiresAt) {
-			c.JSON(http.StatusUnauthorized, models.ErrorResponse{Error: "OTP has expired"})
+		if entry.OTP != req.OTP {
+			c.JSON(http.StatusUnauthorized, models.ErrorResponse{Error: "Invalid OTP"})
 			return
 		}
 
@@ -209,29 +227,33 @@ func ResetPasswordHandler(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		var expiresAt time.Time
-		err := db.QueryRow(
-			"SELECT expires_at FROM password_reset_otps WHERE email = $1 AND otp = $2 ORDER BY created_at DESC LIMIT 1",
-			req.Email,
-			req.OTP,
-		).Scan(&expiresAt)
+		// Clean expired OTPs
+		CleanExpiredOTPs()
 
-		if err == sql.ErrNoRows {
+		// Retrieve from memory
+		otpMutex.Lock()
+		entry, exists := otpStore[req.Email]
+		otpMutex.Unlock()
+
+		if !exists {
 			c.JSON(http.StatusUnauthorized, models.ErrorResponse{Error: "Invalid OTP"})
 			return
 		}
 
-		if err != nil {
-			log.Println("Reset password OTP lookup error:", err.Error())
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: "Failed to reset password"})
-			return
-		}
-
-		if time.Now().After(expiresAt) {
+		if time.Now().After(entry.ExpiresAt) {
+			otpMutex.Lock()
+			delete(otpStore, req.Email)
+			otpMutex.Unlock()
 			c.JSON(http.StatusUnauthorized, models.ErrorResponse{Error: "OTP has expired"})
 			return
 		}
 
+		if entry.OTP != req.OTP {
+			c.JSON(http.StatusUnauthorized, models.ErrorResponse{Error: "Invalid OTP"})
+			return
+		}
+
+		// Decrypt and hash the new password
 		decryptedPassword, err := services.DecryptPassword(req.Password)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, models.ErrorResponse{Error: "Invalid password encryption"})
@@ -245,6 +267,7 @@ func ResetPasswordHandler(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Update password in database
 		_, err = db.Exec("UPDATE users SET password_hash = $1 WHERE email = $2", hashedPassword, req.Email)
 		if err != nil {
 			log.Println("Reset password update error:", err.Error())
@@ -252,10 +275,10 @@ func ResetPasswordHandler(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		_, err = db.Exec("DELETE FROM password_reset_otps WHERE email = $1", req.Email)
-		if err != nil {
-			log.Println("Reset password OTP cleanup error:", err.Error())
-		}
+		// Clean up OTP after successful reset
+		otpMutex.Lock()
+		delete(otpStore, req.Email)
+		otpMutex.Unlock()
 
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
