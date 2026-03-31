@@ -43,3 +43,18 @@ type SignupResponse struct {
 	Message string `json:"message"`
 	UserID  string `json:"userId"`
 }
+
+type PasswordResetRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type VerifyPasswordOTPRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	OTP   string `json:"otp" binding:"required,len=6"`
+}
+
+type ResetPasswordRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	OTP      string `json:"otp" binding:"required,len=6"`
+	Password string `json:"password" binding:"required,min=6"`
+}

@@ -708,13 +708,14 @@ func (as *AdminService) ActivateStaff(userID string) error {
 
 // DoctorDepartment represents a doctor in a specific department
 type DoctorDepartment struct {
-	ID             string `json:"id"`
-	UserID         string `json:"user_id"`
-	Name           string `json:"name"`
-	Email          string `json:"email"`
-	Specialization string `json:"specialization"`
-	Phone          string `json:"phone"`
-	IsAvailable    bool   `json:"is_available"`
+	ID                    string `json:"id"`
+	UserID                string `json:"user_id"`
+	Name                  string `json:"name"`
+	Email                 string `json:"email"`
+	Specialization        string `json:"specialization"`
+	Phone                 string `json:"phone"`
+	IsAvailable           bool   `json:"is_available"`
+	DepartmentDescription string `json:"department_description"`
 }
 
 // GetDoctorsInDepartment returns doctors for a specific department
@@ -743,14 +744,16 @@ func (as *AdminService) GetDoctorsInDepartment(departmentID string) ([]DoctorDep
 			u.email,
 			d.specialization,
 			u.phone,
-			d.is_active
+			d.is_active,
+			COALESCE(dept.description, '') as department_description
 		FROM doctors d
 		JOIN users u ON d.user_id = u.id
-		WHERE d.department = $1 AND d.is_active = true
+		LEFT JOIN departments dept ON d.department_id = dept.id OR d.department = dept.name
+		WHERE (d.department_id::text = $1 OR d.department = $2) AND d.is_active = true
 		ORDER BY u.name ASC
 	`
 
-	rows, err := as.db.Query(query, departmentName)
+	rows, err := as.db.Query(query, departmentID, departmentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch doctors: %w", err)
 	}
@@ -762,6 +765,7 @@ func (as *AdminService) GetDoctorsInDepartment(departmentID string) ([]DoctorDep
 		err := rows.Scan(
 			&doc.ID, &doc.UserID, &doc.Name,
 			&doc.Email, &doc.Specialization, &doc.Phone, &doc.IsAvailable,
+			&doc.DepartmentDescription,
 		)
 		if err != nil {
 			continue

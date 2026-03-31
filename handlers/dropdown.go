@@ -20,7 +20,7 @@ type DropdownOption struct {
 func GetDepartments(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		query := `
-			SELECT id, name, is_active 
+			SELECT id, name, description, type, is_active 
 			FROM departments 
 			WHERE is_active = true 
 			ORDER BY name ASC
@@ -35,15 +35,18 @@ func GetDepartments(db *sql.DB) gin.HandlerFunc {
 
 		var departments []map[string]interface{}
 		for rows.Next() {
-			var id, name string
+			var id, name, departmentType string
+			var description sql.NullString
 			var isActive bool
-			if err := rows.Scan(&id, &name, &isActive); err != nil {
+			if err := rows.Scan(&id, &name, &description, &departmentType, &isActive); err != nil {
 				continue
 			}
 			departments = append(departments, map[string]interface{}{
-				"id":        id,
-				"name":      name,
-				"is_active": isActive,
+				"id":          id,
+				"name":        name,
+				"description": description.String,
+				"type":        departmentType,
+				"is_active":   isActive,
 			})
 		}
 

@@ -236,3 +236,23 @@ func Signup(db *sql.DB, req models.SignupRequest) (*models.SignupResponse, error
 func Logout() error {
 	return nil
 }
+
+// DecryptPassword decodes the base64-encoded password sent by the frontend.
+func DecryptPassword(encodedPassword string) ([]byte, error) {
+	decodedPassword, err := base64.StdEncoding.DecodeString(encodedPassword)
+	if err != nil {
+		return nil, errors.New("invalid request format")
+	}
+
+	return decodedPassword, nil
+}
+
+// HashPassword hashes plain/decrypted password bytes using bcrypt.
+func HashPassword(password []byte) (string, error) {
+	passwordHash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	if err != nil {
+		return "", errors.New("failed to hash password")
+	}
+
+	return string(passwordHash), nil
+}

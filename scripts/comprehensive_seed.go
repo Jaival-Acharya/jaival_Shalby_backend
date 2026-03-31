@@ -442,22 +442,20 @@ func (s *SeedData) seedPatients() error {
 			return err
 		}
 
+		fullName := patient["first_name"].(string) + " " + patient["last_name"].(string)
+
 		query := `
-			INSERT INTO users (email, password, first_name, last_name, phone, address, role, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+			INSERT INTO users (name, email, password_hash, avatar_url, is_active, created_at, updated_at)
+			VALUES ($1, $2, $3, '', true, NOW(), NOW())
 			ON CONFLICT DO NOTHING
 			RETURNING id
 		`
 
-		var userID int
+		var userID string
 		err = s.db.QueryRow(query,
+			fullName,
 			patient["email"],
 			hashedPassword,
-			patient["first_name"],
-			patient["last_name"],
-			patient["phone"],
-			patient["address"],
-			"Patient",
 		).Scan(&userID)
 
 		if err != nil && err != sql.ErrNoRows {
@@ -465,10 +463,10 @@ func (s *SeedData) seedPatients() error {
 		}
 
 		// Insert patient-specific details
-		if userID > 0 {
+		if userID != "" {
 			patientQuery := `
-				INSERT INTO patients (user_id, date_of_birth, gender, blood_group, allergies, created_at)
-				VALUES ($1, $2, $3, $4, $5, NOW())
+				INSERT INTO patients (user_id, date_of_birth, gender, blood_group, phone, created_at)
+				VALUES ($1, $2::date, $3, $4, $5, NOW())
 				ON CONFLICT DO NOTHING
 			`
 			_, err = s.db.Exec(patientQuery,
@@ -476,7 +474,7 @@ func (s *SeedData) seedPatients() error {
 				patient["date_of_birth"],
 				patient["gender"],
 				patient["blood_group"],
-				patient["allergies"],
+				patient["phone"],
 			)
 			if err != nil {
 				return err

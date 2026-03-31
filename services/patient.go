@@ -25,16 +25,21 @@ func generatePatientDefaultPassword(fullName string) string {
 }
 
 type PatientDetail struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Age       int    `json:"age"`
-	Gender    string `json:"gender"`
-	Blood     string `json:"blood"`
-	Phone     string `json:"phone"`
-	Condition string `json:"condition"`
-	LastVisit string `json:"lastVisit"`
-	Meds      int    `json:"meds"`
+	ID                string              `json:"id"`
+	Name              string              `json:"name"`
+	Email             string              `json:"email"`
+	DateOfBirth       string              `json:"dateOfBirth"`
+	Gender            string              `json:"gender"`
+	Blood             string              `json:"blood"`
+	Phone             string              `json:"phone"`
+	Age               int                 `json:"age"`
+	Address           string              `json:"address"`
+	Allergies         []string            `json:"allergies"`
+	Meds              int                 `json:"meds"`
+	LastVisit         string              `json:"lastVisit"`
+	Condition         string              `json:"condition"`
+	ChronicConditions []string            `json:"chronicConditions"`
+	EmergencyContacts []map[string]string `json:"emergencyContacts"`
 }
 
 // GetAllPatients returns all patients
@@ -263,26 +268,82 @@ func CreatePatient(db *sql.DB, req models.PatientCreateRequest) (interface{}, er
 	}, nil
 }
 
-// GetPatientDetails returns detailed information about a patient
+// GetPatientDetails returns detailed information about a patient including allergies, chronic conditions, and emergency contacts
 func GetPatientDetails(db *sql.DB, patientID string) (interface{}, error) {
 	var patient PatientDetail
 
+	// Fetch basic patient details
 	err := db.QueryRow(`
 		SELECT 
 			p.id, u.name, u.email, 
 			EXTRACT(YEAR FROM AGE(p.date_of_birth))::int,
-			p.gender, p.blood_group, p.phone
+			p.gender, p.blood_group, p.phone,
+			COALESCE(TO_CHAR(p.date_of_birth, 'YYYY-MM-DD'), ''),
+			COALESCE(u.address, '')
 		FROM patients p
 		JOIN users u ON p.user_id = u.id
 		WHERE p.id = $1
 	`, patientID).Scan(&patient.ID, &patient.Name, &patient.Email, &patient.Age,
-		&patient.Gender, &patient.Blood, &patient.Phone)
+		&patient.Gender, &patient.Blood, &patient.Phone, &patient.DateOfBirth, &patient.Address)
 
 	if err == sql.ErrNoRows {
 		return nil, errors.New("Patient not found")
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	// Fetch allergies
+	allergiesRows, err := db.Query(`
+		SELECT allergy FROM patient_allergies WHERE patient_id = $1 ORDER BY id ASC
+	`, patientID)
+	if err == nil {
+		defer allergiesRows.Close()
+		var allergies []string
+		for allergiesRows.Next() {
+			var allergy string
+			if err := allergiesRows.Scan(&allergy); err == nil {
+				allergies = append(allergies, allergy)
+			}
+		}
+		patient.Allergies = allergies
+	}
+
+	// Fetch chronic conditions
+	conditionsRows, err := db.Query(`
+		SELECT condition FROM patient_chronic_conditions WHERE patient_id = $1 ORDER BY id ASC
+	`, patientID)
+	if err == nil {
+		defer conditionsRows.Close()
+		var conditions []string
+		for conditionsRows.Next() {
+			var condition string
+			if err := conditionsRows.Scan(&condition); err == nil {
+				conditions = append(conditions, condition)
+			}
+		}
+		patient.ChronicConditions = conditions
+	}
+
+	// Fetch emergency contacts
+	emergencyContactsRows, err := db.Query(`
+		SELECT id, name, phone, relation FROM patient_emergency_contacts WHERE patient_id = $1 ORDER BY id ASC
+	`, patientID)
+	if err == nil {
+		defer emergencyContactsRows.Close()
+		var emergencyContacts []map[string]string
+		for emergencyContactsRows.Next() {
+			var id, name, phone, relation string
+			if err := emergencyContactsRows.Scan(&id, &name, &phone, &relation); err == nil {
+				emergencyContacts = append(emergencyContacts, map[string]string{
+					"id":       id,
+					"name":     name,
+					"phone":    phone,
+					"relation": relation,
+				})
+			}
+		}
+		patient.EmergencyContacts = emergencyContacts
 	}
 
 	return patient, nil
@@ -300,7 +361,7 @@ func UpdatePatient(db *sql.DB, patientID string, data map[string]interface{}) (i
 		return nil, err
 	}
 
-	// Update user info if provided
+	// Update user info (name, email)
 	if name, ok := data["name"]; ok {
 		_, err = db.Exec("UPDATE users SET name = $1 WHERE id = $2", name, userID)
 		if err != nil {
@@ -308,9 +369,44 @@ func UpdatePatient(db *sql.DB, patientID string, data map[string]interface{}) (i
 		}
 	}
 
-	// Update patient info if provided
+	if email, ok := data["email"]; ok {
+		_, err = db.Exec("UPDATE users SET email = $1 WHERE id = $2", email, userID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Update patient info
 	if gender, ok := data["gender"]; ok {
 		_, err = db.Exec("UPDATE patients SET gender = $1 WHERE id = $2", gender, patientID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if phone, ok := data["phone"]; ok {
+		_, err = db.Exec("UPDATE patients SET phone = $1 WHERE id = $2", phone, patientID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if bloodGroup, ok := data["blood_group"]; ok {
+		_, err = db.Exec("UPDATE patients SET blood_group = $1 WHERE id = $2", bloodGroup, patientID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if dateOfBirth, ok := data["date_of_birth"]; ok {
+		_, err = db.Exec("UPDATE patients SET date_of_birth = $1 WHERE id = $2", dateOfBirth, patientID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if address, ok := data["address"]; ok {
+		_, err = db.Exec("UPDATE users SET address = $1 WHERE id = $2", address, userID)
 		if err != nil {
 			return nil, err
 		}
